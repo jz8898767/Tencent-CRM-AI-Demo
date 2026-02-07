@@ -11,10 +11,15 @@ st.markdown("---")
 # 2. 侧边栏配置：填入 API 信息
 with st.sidebar:
     st.header("⚙️ 系统配置")
-    api_key = st.text_input("请输入 DeepSeek API Key", type="password")
+    if "api_key" in st.secrets:
+        api_key = st.secrets["api_key"]
+        st.success("✅ API 密钥已从系统配置中加载")
+    else:
+        api_key = st.text_input("请输入 DeepSeek API Key", type="password")
+        st.info("提示：部署时可在 Advanced Settings 中配置 Secrets 以实现免输入。")
     model_choice = st.selectbox("选择模型", ["deepseek-chat"])
     st.info("本原型用于演示：输入简报 → 自动生成品牌对齐的 HTML 邮件")
-
+    
 # 3. 主界面布局：左侧输入，右侧输出
 col1, col2 = st.columns([1, 1.2])
 
@@ -82,4 +87,5 @@ with col2:
                         mime="text/html"
                     )
             except Exception as e:
+
                 st.error(f"生成失败：{str(e)}")
