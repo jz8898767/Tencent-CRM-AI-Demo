@@ -1,6 +1,9 @@
 import streamlit as st
 import openai
 import streamlit.components.v1 as components
+import requests
+import numpy as np
+from numpy.linalg import norm
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -17,31 +20,44 @@ def chunk_text(text, chunk_size=300):
         chunks.append(chunk)
     return chunks
 
-# 2. RAG 检索 Retrieval（TF-IDF 向量检索）（由于资金有限，暂未使用embedding）
-def retrieve_top_chunks(chunks, query, top_k=3):
-    """
-    输入：
-        chunks: 知识库切块列表
-        query: 用户简报
-    输出：
-        最相关的 top_k 个知识块
-    """
+# 2. RAG 检索 Retrieval（TF-IDF）
+def retrieve_top_chunks_tfidf(chunks, query, top_k=3):
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
 
-    # 向量化
     vectorizer = TfidfVectorizer()
     chunk_vectors = vectorizer.fit_transform(chunks)
-
-    # query 向量化
     query_vector = vectorizer.transform([query])
-
-    # 计算相似度
     similarities = cosine_similarity(query_vector, chunk_vectors)[0]
-
-    # Top-K
     top_indices = similarities.argsort()[-top_k:][::-1]
-    top_chunks = [chunks[i] for i in top_indices]
+    return [chunks[i] for i in top_indices]
 
-    return top_chunks
+# RAG 检索 Retrieval（embedding）
+def get_qwen_embedding(text, api_key):
+    url = "https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "input": text,
+        "model": "text-embedding-v2"
+    }
+    response = requests.post(url, json=data, headers=headers)
+    if response.status_code != 200:
+        raise Exception(f"Qwen Embedding API error: {response.status_code} - {response.text}")
+    result = response.json()
+    return np.array(result['output']['embeddings'][0]['embedding'])
+
+def cosine_sim(a, b):
+    return np.dot(a, b) / (norm(a) * norm(b))
+
+def retrieve_top_chunks_embedding(chunks, query, api_key, top_k=3):
+    query_vec = get_qwen_embedding(query, api_key)
+    chunk_vectors = [get_qwen_embedding(chunk, api_key) for chunk in chunks]
+    similarities = [cosine_sim(query_vec, cv) for cv in chunk_vectors]
+    top_indices = np.argsort(similarities)[-top_k:][::-1]
+    return [chunks[i] for i in top_indices]
 
 # 3. Streamlit 页面配置
 st.set_page_config(page_title="腾讯游戏 CRM 智能生成系统", layout="wide")
@@ -61,6 +77,22 @@ with st.sidebar:
             api_key = st.text_input("请输入 DeepSeek API Key", type="password")
     except:
         api_key = st.text_input("请输入 DeepSeek API Key", type="password")
+    
+    dashscope_api_key = ""
+    try:
+        if "dashscope_api_key" in st.secrets:
+            dashscope_api_key = st.secrets["dashscope_api_key"]
+            st.success("✅ 已加载 DashScope (Qwen) API 密钥")
+        else:
+            dashscope_api_key = st.text_input(
+                "DashScope API Key（可选，用于语义检索；留空则使用关键词匹配）",
+                type="password"
+            )
+    except:
+        dashscope_api_key = st.text_input(
+            "DashScope API Key（可选，用于语义检索；留空则使用关键词匹配）",
+            type="password"
+        )
 
     st.markdown("---")
     st.header("📚 上传游戏知识库 (RAG)")
@@ -73,6 +105,97 @@ with st.sidebar:
         st.success("✅ 知识库已加载")
 
         st.info(f"知识库长度：{len(kb_content)} 字符")
+
+# 移动端 RAG 引导提示（仅小屏显示）
+st.markdown("""
+<style>
+.rag-hint-mobile {
+    display: none;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 9999;
+    max-width: 80%;
+    backdrop-filter: blur(4px);
+}
+.rag-hint-mobile.visible {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.rag-hint-mobile .close-btn {
+    margin-left: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    opacity: 0.8;
+}
+.rag-hint-mobile .close-btn:hover {
+    opacity: 1;
+}
+
+/* 仅在移动端显示（屏幕宽度 <= 768px） */
+@media (max-width: 768px) {
+    .rag-hint-mobile {
+        display: none; /* 默认隐藏，由 JS 控制是否显示 */
+    }
+    .rag-hint-mobile.visible {
+        display: flex !important;
+    }
+}
+</style>
+
+<div id="ragHint" class="rag-hint-mobile">
+    <span>↖️</span>
+    <span>点击此处添加 RAG 知识库</span>
+    <span class="close-btn" onclick="document.getElementById('ragHint').classList.remove('visible');">×</span>
+</div>
+
+<script>
+// 页面加载后，如果未上传文件，则显示提示（仅移动端）
+document.addEventListener('DOMContentLoaded', function() {
+    const isMobile = window.innerWidth <= 768;
+    const uploaded = false; // Streamlit 无法直接传变量，用 JS 检测上传区域是否存在内容较复杂，这里默认显示（可接受）
+    
+    if (is && !localStorage.getItem('ragHintClosed')) {
+        // 简单策略：只要在移动端就显示（用户可手动关闭）
+        document.getElementById('ragHint').classList.add('visible');
+    }
+
+    // 点击提示跳转到 sidebar（Streamlit mobile 会自动展开 sidebar）
+    document.getElementById('ragHint').addEventListener('click', function(e) {
+        if (e.target.classList.contains('close-btn')) return;
+        // 触发 sidebar toggle（Streamlit mobile 的 sidebar 是通过按钮控制的）
+        const sidebarToggle = document.querySelector('button[title="Menu"]');
+        if (sidebarToggle) {
+            sidebarToggle.click();
+            // 自动滚动到上传区域（可选）
+            setTimeout(() => {
+                const uploadLabel = document.evaluate(
+                    "//label[contains(text(), '上传游戏 Wiki')]",
+                    document,
+                    null,
+                    XPathResult.FIRST_ORDERED_NODE_TYPE,
+                    null
+                ).singleNodeValue;
+                if (uploadLabel) {
+                    uploadLabel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 300);
+        }
+    });
+
+    // 记住用户关闭状态（避免反复打扰）
+    document.querySelector('.close-btn').addEventListener('click', function() {
+        localStorage.setItem('ragHintClosed', 'true');
+    });
+});
+</script>
+""", unsafe_allow_html=True)
 
 # 5. 主界面：输入 + 输出布局
 col1, col2 = st.columns([1, 1.2])
@@ -133,11 +256,18 @@ with col2:
                         chunks = chunk_text(kb_content)
 
                         # Step 2: Top-K 检索
-                        top_chunks = retrieve_top_chunks(
-                            chunks,
-                            campaign_brief,
-                            top_k=3
-                        )
+                        if dashscope_api_key and dashscope_api_key.strip():
+                            st.info("🧠 使用 Qwen Embedding 进行语义检索")
+                            try:
+                                top_chunks = retrieve_top_chunks_embedding(
+                                    chunks, campaign_brief, dashscope_api_key, top_k=3
+                                )
+                            except Exception as e:
+                                st.warning(f"⚠️ Embedding 检索失败，回退到 TF-IDF 关键词匹配：{str(e)}")
+                                top_chunks = retrieve_top_chunks_tfidf(chunks, campaign_brief, top_k=3)
+                        else:
+                            st.info("🔍 未提供 Embedding API Key，使用 TF-IDF 关键词匹配进行检索")
+                            top_chunks = retrieve_top_chunks_tfidf(chunks, campaign_brief, top_k=3)
 
                         retrieved_context = "\n\n".join(top_chunks)
 
