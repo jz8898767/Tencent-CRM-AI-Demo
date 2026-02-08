@@ -106,95 +106,25 @@ with st.sidebar:
 
         st.info(f"知识库长度：{len(kb_content)} 字符")
 
-# 移动端 RAG 引导提示（仅小屏显示）
+# 移动端提示
 st.markdown("""
 <style>
-.rag-hint-mobile {
+.mobile-upload-tip {
+    text-align: center;
+    font-size: 13px;
+    color: #666;
+    margin: 8px 0;
     display: none;
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    background: rgba(0, 0, 0, 0.85);
-    color: white;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 14px;
-    z-index: 9999;
-    max-width: 80%;
-    backdrop-filter: blur(4px);
 }
-.rag-hint-mobile.visible {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.rag-hint-mobile .close-btn {
-    margin-left: 8px;
-    font-weight: bold;
-    cursor: pointer;
-    opacity: 0.8;
-}
-.rag-hint-mobile .close-btn:hover {
-    opacity: 1;
-}
-
-/* 仅在移动端显示（屏幕宽度 <= 768px） */
 @media (max-width: 768px) {
-    .rag-hint-mobile {
-        display: none; /* 默认隐藏，由 JS 控制是否显示 */
-    }
-    .rag-hint-mobile.visible {
-        display: flex !important;
+    .mobile-upload-tip {
+        display: block;
     }
 }
 </style>
-
-<div id="ragHint" class="rag-hint-mobile">
-    <span>↖️</span>
-    <span>点击此处添加 RAG 知识库</span>
-    <span class="close-btn" onclick="document.getElementById('ragHint').classList.remove('visible');">×</span>
+<div class="mobile-upload-tip">
+📱 移动端用户请点击左上角「☰」，打开侧边栏上传 RAG 知识库
 </div>
-
-<script>
-// 页面加载后，如果未上传文件，则显示提示（仅移动端）
-document.addEventListener('DOMContentLoaded', function() {
-    const isMobile = window.innerWidth <= 768;
-    const uploaded = false; // Streamlit 无法直接传变量，用 JS 检测上传区域是否存在内容较复杂，这里默认显示（可接受）
-    
-    if (is && !localStorage.getItem('ragHintClosed')) {
-        // 简单策略：只要在移动端就显示（用户可手动关闭）
-        document.getElementById('ragHint').classList.add('visible');
-    }
-
-    // 点击提示跳转到 sidebar（Streamlit mobile 会自动展开 sidebar）
-    document.getElementById('ragHint').addEventListener('click', function(e) {
-        if (e.target.classList.contains('close-btn')) return;
-        // 触发 sidebar toggle（Streamlit mobile 的 sidebar 是通过按钮控制的）
-        const sidebarToggle = document.querySelector('button[title="Menu"]');
-        if (sidebarToggle) {
-            sidebarToggle.click();
-            // 自动滚动到上传区域（可选）
-            setTimeout(() => {
-                const uploadLabel = document.evaluate(
-                    "//label[contains(text(), '上传游戏 Wiki')]",
-                    document,
-                    null,
-                    XPathResult.FIRST_ORDERED_NODE_TYPE,
-                    null
-                ).singleNodeValue;
-                if (uploadLabel) {
-                    uploadLabel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }, 300);
-        }
-    });
-
-    // 记住用户关闭状态（避免反复打扰）
-    document.querySelector('.close-btn').addEventListener('click', function() {
-        localStorage.setItem('ragHintClosed', 'true');
-    });
-});
-</script>
 """, unsafe_allow_html=True)
 
 # 5. 主界面：输入 + 输出布局
