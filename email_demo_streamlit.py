@@ -116,9 +116,6 @@ with col2:
         if not api_key:
             st.error("❌ 请先配置 API Key！")
 
-        elif not kb_content:
-            st.error("❌ 请先上传知识库文件！")
-
         else:
             try:
                 client = openai.OpenAI(
@@ -126,43 +123,66 @@ with col2:
                     base_url="https://api.deepseek.com"
                 )
 
-                with st.spinner("🔍 正在进行 RAG 检索 + 邮件生成..."):
+                with st.spinner("✍️ 正在生成邮件..."):
 
-                    # Step 1: Chunking
-                    chunks = chunk_text(kb_content)
+                    if kb_content:
 
-                    # Step 2: 提取 Top-K
-                    top_chunks = retrieve_top_chunks(
-                        chunks,
-                        campaign_brief,
-                        top_k=3
-                    )
+                        st.success("📚 检测到知识库，启用 RAG 检索增强模式")
 
-                    retrieved_context = "\n\n".join(top_chunks)
+                        # Step 1: Chunking
+                        chunks = chunk_text(kb_content)
 
-                    st.markdown("### 🔍 检索到的知识片段 (Top-3)")
-                    st.code(retrieved_context)
+                        # Step 2: Top-K 检索
+                        top_chunks = retrieve_top_chunks(
+                            chunks,
+                            campaign_brief,
+                            top_k=3
+                        )
 
-                    # Step 3: 生成邮件
-                    prompt = f"""
-                        你是一名资深腾讯游戏 CRM 邮件运营专家。
+                        retrieved_context = "\n\n".join(top_chunks)
 
-                        请根据【活动简报】并严格参考【检索知识库片段】，生成生产级 HTML 邮件。
+                        st.markdown("### 🔍 检索到的知识片段 (Top-3)")
+                        st.code(retrieved_context)
 
-                        【活动简报】
-                        {campaign_brief}
+                        prompt = f"""
+                            你是一名资深腾讯游戏 CRM 邮件运营专家。
 
-                        【检索知识库片段】
-                        {retrieved_context}
+                            请根据【活动简报】并严格参考【检索知识库片段】，生成生产级 HTML 邮件。
 
-                        要求：
-                        - 仅输出 HTML，不要解释
-                        - 包含：标题、副标题、正文、CTA按钮、页脚
-                        - 使用简洁内联 CSS
-                        - CTA 按钮必须是 <a> 标签
-                        - 邮件术语必须与知识库一致
-                        - 风格要符合游戏调性
-                        """
+                            【活动简报】
+                            {campaign_brief}
+
+                            【检索知识库片段】
+                            {retrieved_context}
+
+                            要求：
+                            - 仅输出 HTML，不要解释
+                            - 包含：标题、副标题、正文、CTA按钮、页脚
+                            - 使用简洁内联 CSS
+                            - CTA 按钮必须是 <a> 标签
+                            - 邮件术语必须与知识库一致
+                            - 风格要符合游戏调性
+                            """
+
+                    else:
+
+                        st.warning("⚠️ 未上传知识库，使用普通 AI 生成模式（试用）")
+
+                        prompt = f"""
+                            你是一名资深腾讯游戏 CRM 邮件运营专家。
+
+                            请根据【活动简报】直接生成一封高质量 HTML 游戏营销邮件。
+
+                            【活动简报】
+                            {campaign_brief}
+
+                            要求：
+                            - 仅输出 HTML，不要解释
+                            - 包含：标题、副标题、正文、CTA按钮、页脚
+                            - 使用简洁内联 CSS
+                            - CTA 按钮必须是 <a> 标签
+                            - 风格要符合游戏调性
+                            """
 
                     response = client.chat.completions.create(
                         model="deepseek-chat",
@@ -172,14 +192,15 @@ with col2:
 
                     html_content = response.choices[0].message.content
 
-                    # Step 4: 预览和下载
+                    # Step 4: 预览 + 下载
                     components.html(html_content, height=600, scrolling=True)
 
                     st.download_button(
                         "💾 下载 HTML 文件",
                         data=html_content,
-                        file_name="game_crm_email_rag.html"
+                        file_name="game_crm_email.html"
                     )
 
             except Exception as e:
                 st.error(f"生成失败：{str(e)}")
+
