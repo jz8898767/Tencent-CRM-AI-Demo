@@ -254,6 +254,7 @@ with col2:
                         - 邮件术语必须与参考资料一致
                         - 风格符合游戏调性
                         - 包含：标题、副标题、正文、CTA按钮、页脚
+                        - 页脚的涉及到运营团队的称谓必须与游戏名称一致
                         - 使用简洁内联 CSS
                         - CTA 按钮必须是 <a href="https://jz8898767.github.io/egg_page/">
 
@@ -273,6 +274,7 @@ with col2:
                         - 邮件术语必须与参考资料一致
                         - 风格符合游戏调性
                         - 包含：标题、副标题、正文、CTA按钮、页脚
+                        - 页脚的涉及到运营团队的称谓必须与游戏名称一致
                         - 使用简洁内联 CSS
                         - CTA 按钮必须是 <a href="https://jz8898767.github.io/egg_page/">
 
@@ -331,4 +333,5 @@ with col2:
 
             except Exception as e:
                 st.error(f"运行出错：{str(e)}")
+
 
